@@ -1,0 +1,20 @@
+[package]
+name = "scancraft"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+tokio = { version = "1.32.0", features = ["full"] }
+anyhow = "1.0.75"
+clap = { version = "4.4.6", features = ["derive"] }
+parking_lot = "0.12.1"
+perfect_rand = "0.1.5"
+rand = "0.8.5"
+pnet = "0.34.0"
+pnet_macros_support = "0.34.0"
+libc = "0.2.148"
+tracing = "0.1.37"
+default-net = "0.17.0"
+tcp = "0.1.0"
