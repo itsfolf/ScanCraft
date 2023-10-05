@@ -5,10 +5,13 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
+use amqprs::{BasicProperties, DELIVERY_MODE_PERSISTENT, FieldTable};
+use amqprs::channel::{BasicPublishArguments, QueueBindArguments};
+use amqprs::connection::{Connection, OpenConnectionArguments};
 use clap::{Parser, ValueEnum};
 use parking_lot::Mutex;
-use scancraft::exclude;
 
+use scancraft::exclude;
 use scancraft::processing::SharedData;
 use scancraft::scanner::{ScannerReceiver, ScanSession};
 use scancraft::scanner::Scanner;
@@ -64,13 +67,21 @@ async fn main() -> anyhow::Result<()> {
     println!("Starting...");
     println!("Mode: {}", args.mode);
 
+    let mut connection = Connection::open(&OpenConnectionArguments::new(
+        "",
+        5672,
+        "",
+        "",
+    )).await.unwrap();
     let scanner = Scanner::new(args.source_port);
+    println!("Connected to RabbitMQ: {}", connection.is_open());
 
     let scanner_seed = scanner.seed;
     let scanner_writer = scanner.client.write.clone();
 
     let has_ended = Arc::new(AtomicBool::new(false));
     let shared_process_data = Arc::new(Mutex::new(SharedData {
+        connection: connection.clone(),
         found_server_queue: VecDeque::new(),
         results: 0,
     }));
@@ -117,6 +128,10 @@ async fn main() -> anyhow::Result<()> {
             let scanner_thread = thread::spawn(move || {
                 session.run(args.rate, &mut scanner_writer, scanner_seed);
             });
+            let channel = connection.open_channel(None).await.unwrap();
+            let publish_args =
+                BasicPublishArguments::new("mcscan", "ping_ingest");
+
 
             loop {
                 if shared_process_data.lock().found_server_queue.is_empty() {
@@ -129,6 +144,25 @@ async fn main() -> anyhow::Result<()> {
                     .drain(..).collect::<Vec<_>>();
                 for (addr, data) in updating {
                     println!("Found server at {addr}");
+                    let mut headers = FieldTable::new();
+                    headers.insert("ip".try_into().unwrap(),
+                                   addr.ip().to_string().try_into().unwrap());
+                    headers.insert("port".try_into().unwrap(),
+                                   addr.port().to_string().try_into().unwrap());
+                    headers.insert("source".try_into().unwrap(),
+                                   "burst".try_into().unwrap());
+                    headers.insert("ms".try_into().unwrap(),
+                                   chrono::Utc::now().timestamp_millis()
+                                       .to_string().try_into().unwrap());
+                    channel
+                        .basic_publish(
+                            BasicProperties::default()
+                                .with_delivery_mode(DELIVERY_MODE_PERSISTENT)
+                                .with_headers(headers)
+                                .finish(),
+                            data, publish_args.clone())
+                        .await
+                        .unwrap();
                 }
 
                 if scanner_thread.is_finished() {
