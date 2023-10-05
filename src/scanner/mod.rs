@@ -403,7 +403,7 @@ impl ScanSession {
                 );
 
                 let minutes_left = (total_packets - packets_sent) as f64 / packets_per_second / 60.;
-                let minutes_left_total = total_packets as f64 / pps_total / 60.;
+                let minutes_left_total = (total_packets - packets_sent) as f64 / pps_total / 60.;
                 println!(
                     "estimated time left: {:.2} minutes ({:.2} considering total)",
                     minutes_left, minutes_left_total
