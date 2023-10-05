@@ -7,11 +7,12 @@ use std::time::Duration;
 
 use clap::{Parser, ValueEnum};
 use parking_lot::Mutex;
+use scancraft::exclude;
 
 use scancraft::processing::SharedData;
 use scancraft::scanner::{ScannerReceiver, ScanSession};
 use scancraft::scanner::Scanner;
-use scancraft::scanner::targets::{ScanRange, ScanRanges};
+use scancraft::scanner::targets::{Ipv4Ranges, ScanRange, ScanRanges};
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -88,14 +89,23 @@ async fn main() -> anyhow::Result<()> {
         ScanMode::Burst => {
             let mut ranges = ScanRanges::new();
             ranges.extend(vec![match args.subnet {
-                Some(subnet) => ScanRange::from_string(subnet, 25565, 25565),
+                Some(subnet) =>
+                    ScanRange::from_string(subnet, 25565, 25565),
                 None => ScanRange::single_port(
-                    Ipv4Addr::new(185, 182, 186, 0),
-                    Ipv4Addr::new(185, 182, 187, 255),
+                    Ipv4Addr::new(0, 0, 0, 0),
+                    Ipv4Addr::new(255, 255, 255, 255),
                     25565,
                 )
             }]);
-            println!("Scanning {} addresses...", ranges.count());
+            let exclude_ranges = exclude::parse_file("exclude.conf")
+                .unwrap_or(Ipv4Ranges::new(vec![]));
+            println!(
+                "excluding {} ips ({} ranges)",
+                exclude_ranges.count(),
+                exclude_ranges.ranges().len()
+            );
+            ranges.apply_exclude(&exclude_ranges);
+            println!("Scanning {} addresses ({} excluded)...", ranges.count(), exclude_ranges.count());
 
             let session = ScanSession::new(ranges);
             let mut scanner_writer = scanner_writer.clone();
@@ -113,7 +123,7 @@ async fn main() -> anyhow::Result<()> {
                 let updating = shared_process_data.lock().found_server_queue
                     .drain(..).collect::<Vec<_>>();
                 for (addr, data) in updating {
-                    println!("Found server at {}: {:?}", addr, data);
+                    println!("Found server at {addr}");
                 }
 
                 if scanner_thread.is_finished() {
