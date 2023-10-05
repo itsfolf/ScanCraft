@@ -6,10 +6,13 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use amqprs::{BasicProperties, DELIVERY_MODE_PERSISTENT, FieldTable};
-use amqprs::channel::{BasicPublishArguments, QueueBindArguments};
+use amqprs::channel::BasicPublishArguments;
 use amqprs::connection::{Connection, OpenConnectionArguments};
 use clap::{Parser, ValueEnum};
 use parking_lot::Mutex;
+use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::util::SubscriberInitExt;
+use tracing_subscriber::EnvFilter;
 
 use scancraft::exclude;
 use scancraft::processing::SharedData;
@@ -63,6 +66,11 @@ impl fmt::Display for ScanMode {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    tracing_subscriber::registry()
+        .with(tracing_subscriber::fmt::layer())
+        .with(EnvFilter::from_default_env())
+        .init();
+
     let args = Args::parse();
     println!("Starting...");
     println!("Mode: {}", args.mode);

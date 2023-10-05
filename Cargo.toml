@@ -20,3 +20,4 @@ default-net = "0.17.0"
 tcp = "0.1.0"
 amqprs = "1.4.1"
 chrono = "0.4.31"
+tracing-subscriber = { version = "0.3.17", features = ["env-filter"] }
