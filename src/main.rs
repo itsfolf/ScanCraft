@@ -78,7 +78,12 @@ async fn main() -> anyhow::Result<()> {
         receiver.recv_loop(Duration::from_secs(ping_timeout_secs));
     });
 
-    // start?
+    if args.silent {
+        println!("Silent mode enabled, not sending packets");
+        recv_loop_thread.join().unwrap();
+        return Ok(());
+    }
+
     match args.mode {
         ScanMode::Burst => {
             let mut ranges = ScanRanges::new();
@@ -122,13 +127,13 @@ async fn main() -> anyhow::Result<()> {
                     }
                 }
             }
-
-            recv_loop_thread.join().unwrap();
         }
         _ => {
             println!("Not implemented yet {}", args.mode)
         }
     }
+
+    recv_loop_thread.join().unwrap();
 
     Ok(())
 }
