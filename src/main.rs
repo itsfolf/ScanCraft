@@ -28,6 +28,15 @@ struct Args {
 
     #[arg(long, default_value_t = false, help = "Don't initiate packets")]
     silent: bool,
+
+    #[arg(long, short, default_value_t = 100000, help = "Max packets per second")]
+    rate: u64,
+
+    #[arg(long, short, default_value_t = 60, help = "Timeout for ping response")]
+    timeout: u64,
+
+    #[arg(long, default_value_t = 61000, help = "Source port to send packets from")]
+    source_port: u16,
 }
 
 #[derive(Copy, Clone, Debug, ValueEnum)]
@@ -55,11 +64,7 @@ async fn main() -> anyhow::Result<()> {
     println!("Starting...");
     println!("Mode: {}", args.mode);
 
-    let source_port = 61000;
-    let ping_timeout_secs = 60;
-    let max_packets_per_second = 100000;
-
-    let scanner = Scanner::new(source_port);
+    let scanner = Scanner::new(args.source_port);
 
     let scanner_seed = scanner.seed;
     let scanner_writer = scanner.client.write.clone();
@@ -76,7 +81,7 @@ async fn main() -> anyhow::Result<()> {
         has_ended: has_ended.clone(),
     };
     let recv_loop_thread = thread::spawn(move || {
-        receiver.recv_loop(Duration::from_secs(ping_timeout_secs));
+        receiver.recv_loop(Duration::from_secs(args.timeout));
     });
 
     if args.silent {
@@ -110,7 +115,7 @@ async fn main() -> anyhow::Result<()> {
             let session = ScanSession::new(ranges);
             let mut scanner_writer = scanner_writer.clone();
             let scanner_thread = thread::spawn(move || {
-                session.run(max_packets_per_second, &mut scanner_writer, scanner_seed);
+                session.run(args.rate, &mut scanner_writer, scanner_seed);
             });
 
             loop {
@@ -128,8 +133,8 @@ async fn main() -> anyhow::Result<()> {
 
                 if scanner_thread.is_finished() {
                     if !has_ended.load(Ordering::Relaxed) {
-                        println!("Scanner has finished, waiting {} seconds to close recv loop...", { ping_timeout_secs });
-                        tokio::time::sleep(Duration::from_secs(ping_timeout_secs)).await;
+                        println!("Scanner has finished, waiting {} seconds to close recv loop...", { args.timeout });
+                        tokio::time::sleep(Duration::from_secs(args.timeout)).await;
                         has_ended.store(true, Ordering::Relaxed);
                     } else {
                         println!("Done!");
