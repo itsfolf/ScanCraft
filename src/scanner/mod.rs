@@ -391,7 +391,8 @@ impl ScanSession {
             let time_since_last_log = Instant::now() - last_log_time;
             if is_done || (packets_sent != 0 && time_since_last_log > Duration::from_secs(5)) {
                 let packets_per_second = (packets_sent - packets_sent_last_log) as f64
-                    / (Instant::now() - last_log_time).as_secs_f64();
+                    / last_log_time.elapsed().as_secs_f64();
+                let pps_total = packets_sent as f64 / start.elapsed().as_secs_f64();
 
                 println!(
                     "sent {} packets in {} seconds ({:.2} packets per second, estimated: {:.2})",
@@ -400,6 +401,14 @@ impl ScanSession {
                     packets_per_second,
                     throttler.estimated_packets_per_second()
                 );
+
+                let minutes_left = (total_packets - packets_sent) as f64 / packets_per_second / 60.;
+                let minutes_left_total = total_packets as f64 / pps_total / 60.;
+                println!(
+                    "estimated time left: {:.2} minutes ({:.2} considering total)",
+                    minutes_left, minutes_left_total
+                );
+
                 packets_sent_last_log = packets_sent;
                 last_log_time = Instant::now();
             }
