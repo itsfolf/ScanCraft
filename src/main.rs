@@ -100,6 +100,7 @@ async fn main() -> anyhow::Result<()> {
                     tokio::time::sleep(Duration::from_millis(100)).await;
                     continue;
                 }
+
                 let updating = shared_process_data.lock().found_server_queue
                     .drain(..).collect::<Vec<_>>();
                 for (addr, data) in updating {
@@ -107,12 +108,15 @@ async fn main() -> anyhow::Result<()> {
                 }
 
                 if scanner_thread.is_finished() {
-                    println!("Scanner has finished, waiting {} seconds to close recv loop...", { ping_timeout_secs });
-                    tokio::time::sleep(Duration::from_secs(ping_timeout_secs)).await;
-                    has_ended.store(true, Ordering::Relaxed);
-                    recv_loop_thread.join().unwrap();
-                    println!("Done!");
-                    break;
+                    if !has_ended.load(Ordering::Relaxed) {
+                        println!("Scanner has finished, waiting {} seconds to close recv loop...", { ping_timeout_secs });
+                        tokio::time::sleep(Duration::from_secs(ping_timeout_secs)).await;
+                        has_ended.store(true, Ordering::Relaxed);
+                        recv_loop_thread.join().unwrap();
+                    } else {
+                        println!("Done!");
+                        break;
+                    }
                 }
             }
         }
