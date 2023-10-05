@@ -82,11 +82,15 @@ async fn main() -> anyhow::Result<()> {
     match args.mode {
         ScanMode::Burst => {
             let mut ranges = ScanRanges::new();
-            ranges.extend(vec![ScanRange::single_port(
-                Ipv4Addr::new(185, 182, 186, 0),
-                Ipv4Addr::new(185, 182, 187, 255),
-                25565,
-            )]);
+            ranges.extend(vec![match args.subnet {
+                Some(subnet) => ScanRange::from_string(subnet, 25565, 25565),
+                None => ScanRange::single_port(
+                    Ipv4Addr::new(185, 182, 186, 0),
+                    Ipv4Addr::new(185, 182, 187, 255),
+                    25565,
+                )
+            }]);
+            println!("Scanning {} addresses...", ranges.count());
 
             let session = ScanSession::new(ranges);
             let mut scanner_writer = scanner_writer.clone();
@@ -112,13 +116,14 @@ async fn main() -> anyhow::Result<()> {
                         println!("Scanner has finished, waiting {} seconds to close recv loop...", { ping_timeout_secs });
                         tokio::time::sleep(Duration::from_secs(ping_timeout_secs)).await;
                         has_ended.store(true, Ordering::Relaxed);
-                        recv_loop_thread.join().unwrap();
                     } else {
                         println!("Done!");
                         break;
                     }
                 }
             }
+
+            recv_loop_thread.join().unwrap();
         }
         _ => {
             println!("Not implemented yet {}", args.mode)

@@ -2,6 +2,7 @@ use std::{
     mem,
     net::{Ipv4Addr, SocketAddrV4},
 };
+use tracing::debug;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ScanRange {
@@ -55,6 +56,22 @@ impl ScanRange {
         Self {
             addr_start: addr,
             addr_end: addr,
+            port_start,
+            port_end,
+        }
+    }
+
+    pub fn from_string(addr: String, port_start: u16, port_end: u16) -> Self {
+        let mut parts = addr.split('/').collect::<Vec<&str>>();
+        let ip_octets = parts[0].split('.').map(|x| x.parse::<u8>().unwrap()).collect::<Vec<u8>>();
+        let addr_start = Ipv4Addr::new(ip_octets[0], ip_octets[1], ip_octets[2], ip_octets[3]);
+        let cidr = parts[1].parse::<u32>().unwrap();
+        let addr_end = Ipv4Addr::from(u32::from(addr_start) + (2u32.pow(32 - cidr) - 1));
+        debug!("addr_start: {}, addr_end: {}", addr_start, addr_end);
+
+        Self {
+            addr_start,
+            addr_end,
             port_start,
             port_end,
         }
